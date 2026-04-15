@@ -14,6 +14,20 @@ class NEAT
     public: 
         enum neuronType {INPUT, HIDDEN, OUTPUT};
 
+        struct phenotypeConnection
+        {
+            long int targetNodeID;
+            float weight;
+        };
+
+        struct phenotypeNeuron
+        {
+            float bias;
+            bool isOutput;
+            long int id;
+            std::vector<phenotypeConnection> outgoing;
+        };
+
         struct neuronGene
         {
             long int id;
@@ -32,6 +46,8 @@ class NEAT
 
         struct genome
         {
+            int inputs;
+            int outputs;
             float fitness;
             float adjustedFitness;
             std::unordered_map<long int, neuronGene> neurons;
@@ -40,11 +56,13 @@ class NEAT
             std::unordered_set<long int> synapseIDs;
 
             std::unordered_map<long int, std::vector<long int>> adj;
+
+            std::vector<phenotypeNeuron> nnExecutionOrder;
         };
 
         struct pair_hash {
-            inline size_t operator()(const std::pair<int, int> &v) const {
-                return std::hash<int>{}(v.first) ^ (std::hash<int>{}(v.second) << 1);
+            inline size_t operator()(const std::pair<long int, long int> &v) const {
+                return std::hash<long int>{}(v.first) ^ (std::hash<long int>{}(v.second) << 1);
             }
         };
 
@@ -55,9 +73,9 @@ class NEAT
         std::uniform_real_distribution<float> distrib;
         std::uniform_real_distribution<float> chance;
         std::vector<genome> genomes;
-        std::vector<std::vector<genome*>> speciatedGenomes;
+        std::vector<std::vector<long int>> speciatedGenomes;
         std::vector<std::vector<genome>> newGenomes;
-        std::unordered_map<std::pair<long int, long int>, int, pair_hash> synapseInnovationNumbers;
+        std::unordered_map<std::pair<long int, long int>, long int, pair_hash> synapseInnovationNumbers;
         std::unordered_map<long int, long int> synapseSplits;
 
         float c1 = 1.0f, c2 = 1.0f, c3 = 0.4f, deltaT = 3.0f, r = 0.2f, disableProb = 0.75f, weightMutationPower = 0.2f;
@@ -71,7 +89,10 @@ class NEAT
         bool hasCycle(long int current, long int target, const std::unordered_map<long int, std::vector<long int>>& graph, std::unordered_set<long int>& visited);
         void mutate(genome* genome); 
         void reproduce(); 
-        std::vector<float> feedForward(genome& g, const std::vector<float>& inputs);
+        void compileNetwork(genome& g);
+        std::vector<float> feedForward(genome& g, const std::vector<float>& inputs, float (*activationFunction)(float));
+
+        static float sigmoid(float x);
 };
 
 #endif

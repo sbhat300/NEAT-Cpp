@@ -4,6 +4,7 @@
 #include <random>
 #include <algorithm>
 #include <unordered_set>
+#include <queue>
 
 #include "neat.h"
 
@@ -17,6 +18,8 @@ void NEAT::initialize()
 NEAT::genome NEAT::spawnInitial(int inputs, int outputs)
 {
     genome newGenome;
+    newGenome.inputs = inputs;
+    newGenome.outputs = outputs;
     long int globalInnovationCounter = 0;
     for(int i = 0; i < inputs; i++)
     {
@@ -56,15 +59,15 @@ void NEAT::speciate()
 {
     if(genomes.empty()) return;
     speciatedGenomes.clear();
-    speciatedGenomes.push_back(std::vector<genome*>());
-    speciatedGenomes[0].push_back(&genomes[0]);
+    speciatedGenomes.push_back(std::vector<long int>());
+    speciatedGenomes[0].push_back(0);
 
     for(int i = 1; i < genomes.size(); i++)
     {
         bool found = false;
-        for(int j = 0; j < speciatedGenomes.size(); j++)
+        for(long int j = 0; j < speciatedGenomes.size(); j++)
         {
-            genome* compare = speciatedGenomes[j][0];
+            genome* compare = &genomes[speciatedGenomes[j][0]];
             long int excess = 0, disjoint = 0, matching = 0;
             long int max1 = 0, max2 = 0;
             float weightDiff = 0;
@@ -109,15 +112,15 @@ void NEAT::speciate()
             float delta = c1 * (float)excess / N + c2 * (float)disjoint / N + c3 * W;
             if(delta <= deltaT) 
             {
-                speciatedGenomes[j].push_back(&genomes[i]);
+                speciatedGenomes[j].push_back(i);
                 found = true;
                 break;
             }
         }
         if(!found)
         {
-            speciatedGenomes.push_back(std::vector<genome*>());
-            speciatedGenomes[speciatedGenomes.size() - 1].push_back(&genomes[i]);
+            speciatedGenomes.push_back(std::vector<long int>());
+            speciatedGenomes[speciatedGenomes.size() - 1].push_back(i);
         }
     }
 }
@@ -133,8 +136,9 @@ void NEAT::fitnessShare()
     for(int i = 0; i < speciatedGenomes.size(); i++)
     {
         NPrime[i] = 0;
-        for(genome* g : speciatedGenomes[i])
+        for(int j : speciatedGenomes[i])
         {
+            genome* g = &genomes[j];
             float adjustedFitness = g->fitness / speciatedGenomes[i].size();
             NPrime[i] += adjustedFitness;
             meanAdjFitness += adjustedFitness;
@@ -407,7 +411,7 @@ void NEAT::reproduce()
     for(int i = 0; i < speciatedGenomes.size(); i++)
     {
         std::sort(speciatedGenomes[i].begin(), speciatedGenomes[i].end(),
-                    [](genome* a, genome* b) {return a->fitness > b->fitness;});
+                    [this](long int a, long int b) {return genomes[a].fitness > genomes[b].fitness;});
 
         int toAllocate = newGenomes[i].size();
         if(toAllocate == 0) continue;
@@ -415,7 +419,7 @@ void NEAT::reproduce()
         int current = 0;
         if(speciatedGenomes[i].size() > 5)
         {
-            newGenomes[i][current] = *speciatedGenomes[i][0];
+            newGenomes[i][current] = genomes[speciatedGenomes[i][0]];
             current++;
         }
 
@@ -423,8 +427,8 @@ void NEAT::reproduce()
         std::uniform_int_distribution<long int> parentDist(0, topR - 1);
         while(current < toAllocate)
         {
-            genome* parent1 = speciatedGenomes[i][parentDist(gen)];
-            genome* parent2 = speciatedGenomes[i][parentDist(gen)];
+            genome* parent1 = &genomes[speciatedGenomes[i][parentDist(gen)]];
+            genome* parent2 = &genomes[speciatedGenomes[i][parentDist(gen)]];
             newGenomes[i][current] = crossover(parent1, parent2);
             mutate(&newGenomes[i][current]);
             current++;
@@ -441,4 +445,83 @@ void NEAT::reproduce()
     }
 
     newGenomes.clear();
+}
+
+void NEAT::compileNetwork(genome& g)
+{
+    g.nnExecutionOrder.clear();
+    std::unordered_map<long int, long int> inDegrees;
+    std::unordered_map<long int, std::vector<std::pair<long int, float>>> adj;
+
+    for(const synapseGene& synapse : g.synapses)
+    {
+        if(synapse.enabled)
+        {
+            adj[synapse.inputID].push_back({synapse.outputID, synapse.weight});
+            inDegrees[synapse.outputID]++;
+        }
+    }
+
+    std::queue<long int> ids;
+    for(long int i = 0; i < g.inputs; i++)
+    {
+        if(inDegrees[i] == 0) ids.push(i);
+    }
+    for(long int id : g.neuronList)
+    {
+        if(id >= g.inputs && inDegrees[id] == 0) ids.push(id);
+    }
+
+    std::unordered_map<long int, long int> idToIdx;
+    while(!ids.empty())
+    {
+        long int current = ids.front();
+        ids.pop();
+        idToIdx[current] = g.nnExecutionOrder.size();
+        phenotypeNeuron newNeuron = {g.neurons[current].bias, g.neurons[current].type == OUTPUT, current};
+        g.nnExecutionOrder.push_back(newNeuron);
+
+        for(auto& neuron : adj[current])
+        {
+            inDegrees[neuron.first]--;
+            if(inDegrees[neuron.first] == 0) ids.push(neuron.first);
+        }
+    }
+
+    for(auto& neuron : g.nnExecutionOrder)
+    {
+        for(auto& outNeuron : adj[neuron.id]) neuron.outgoing.push_back({idToIdx[outNeuron.first], outNeuron.second});
+    }
+}
+
+std::vector<float> NEAT::feedForward(genome& g, const std::vector<float>& inputs, float (*activationFunction)(float))
+{    
+    std::vector<float> nodeVals(g.nnExecutionOrder.size(), 0.0f);
+    std::vector<float> outputVals(g.outputs, 0.0f);
+
+    for(int i = 0; i < g.nnExecutionOrder.size(); i++)
+    {
+        const phenotypeNeuron& neuron = g.nnExecutionOrder[i];
+        if(i < g.inputs) nodeVals[i] = inputs[i];
+        else 
+        {
+            nodeVals[i] += neuron.bias;
+            nodeVals[i] = activationFunction(nodeVals[i]);
+        }
+
+        if(neuron.isOutput)
+        {
+            outputVals[neuron.id - g.inputs] = nodeVals[i];
+        }
+
+        for(const phenotypeConnection& connection : neuron.outgoing)
+            nodeVals[connection.targetNodeID] += nodeVals[i] * connection.weight;
+    }
+
+    return outputVals;
+}
+
+float NEAT::sigmoid(float x)
+{
+    return 1.0f / (1.0f + std::exp(-x));
 }
