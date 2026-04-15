@@ -313,7 +313,7 @@ void NEAT::mutate(genome* genome)
 {
     for(synapseGene& synapse : genome->synapses)
     {
-        if(chance(gen) < 0.80f) 
+        if(chance(gen) < weightMutationRate) 
         {
             if(chance(gen) < 0.90f) synapse.weight += distrib(gen) * weightMutationPower;
             else synapse.weight = distrib(gen);
@@ -321,14 +321,14 @@ void NEAT::mutate(genome* genome)
     }
     for(std::pair<const long int, neuronGene>& neuron : genome->neurons)
     {
-        if(chance(gen) < 0.80f) 
+        if(chance(gen) < biasMutationRate) 
         {
             if(chance(gen) < 0.90f) neuron.second.bias += distrib(gen) * weightMutationPower;
             else neuron.second.bias = distrib(gen);
         }
     }
 
-    if(chance(gen) < 0.05f)
+    if(chance(gen) < newSynapseMutationRate)
     {
         std::uniform_int_distribution<long int> neuronDist(0, genome->neuronList.size() - 1);
         neuronGene* first = &genome->neurons[genome->neuronList[neuronDist(gen)]];
@@ -360,7 +360,7 @@ void NEAT::mutate(genome* genome)
 
     }
 
-    if(chance(gen) < 0.03f)
+    if(chance(gen) < newNeuronMutationRate)
     {
         std::vector<int> enabledIndices;
         enabledIndices.reserve(genome->synapses.size());
@@ -411,7 +411,7 @@ void NEAT::mutate(genome* genome)
         }
     }
 
-    if(chance(gen) < 0.05f)
+    if(chance(gen) < flipMutationRate)
     {
         std::uniform_int_distribution<long int> flipDist(0, genome->synapses.size() - 1);
         int flipIdx = flipDist(gen);

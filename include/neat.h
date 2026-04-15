@@ -80,6 +80,7 @@ class NEAT
         int populationSize;
 
         float c1 = 1.0f, c2 = 1.0f, c3 = 0.4f, deltaT = 3.0f, r = 0.2f, disableProb = 0.75f, weightMutationPower = 0.2f;
+        float weightMutationRate = 0.80f, biasMutationRate = 0.80f, newSynapseMutationRate = 0.05f, newNeuronMutationRate = 0.03f, flipMutationRate = 0.05f;
 
         void initialize();
         genome spawnInitial(int inputs, int outputs);
