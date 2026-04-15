@@ -49,6 +49,7 @@ NEAT::genome NEAT::spawnInitial(int inputs, int outputs)
 void NEAT::generatePopulation(int population, int inputs, int outputs)
 {
     globalNeuronNumber = inputs + outputs;
+    populationSize = population;
     for(int i = 0; i < population; i++)
     {
         genomes.push_back(spawnInitial(inputs, outputs));
@@ -151,11 +152,22 @@ void NEAT::fitnessShare()
         }
     }
     meanAdjFitness /= genomes.size();
-    if(meanAdjFitness == 0) return;
     
     newGenomes.clear();
     newGenomes.resize(speciatedGenomes.size());
     int allocated = 0;
+    if(meanAdjFitness == 0) 
+    {
+        int perSpecies = genomes.size() / speciatedGenomes.size();
+        int remainder = genomes.size() % speciatedGenomes.size();
+        for(int i = 0; i < speciatedGenomes.size(); i++)
+        {
+            newGenomes[i].resize(perSpecies);
+        }
+        newGenomes[0].resize(perSpecies + remainder);
+        return;
+    }
+
     for(int i = 0; i < speciatedGenomes.size(); i++) 
     {
         long int allocate = (long int)(NPrime[i] / meanAdjFitness);
@@ -169,6 +181,8 @@ void NEAT::fitnessShare()
 NEAT::genome NEAT::crossover(genome* parent1, genome* parent2)
 {
     genome newGenome;
+    newGenome.inputs = parent1->inputs;
+    newGenome.outputs = parent2->outputs;
     genome* strongParent;
     genome* weakParent;
     if(parent1->fitness > parent2->fitness)
@@ -229,7 +243,7 @@ NEAT::genome NEAT::crossover(genome* parent1, genome* parent2)
             while(p1 < strongParent->synapses.size()) 
             {
                 newGenome.synapses.push_back(strongParent->synapses[p1]);
-                newGenome.synapseIDs.insert(strongParent ->synapses[p1].innovationNumber);
+                newGenome.synapseIDs.insert(strongParent->synapses[p1].innovationNumber);
                 newGenome.adj[strongParent->synapses[p1].inputID].push_back(strongParent->synapses[p1].outputID); 
                 p1++;
             }
@@ -278,7 +292,6 @@ NEAT::genome NEAT::crossover(genome* parent1, genome* parent2)
             p2++;
         }
     }
-
     return newGenome;
 }
 
@@ -359,7 +372,7 @@ void NEAT::mutate(genome* genome)
         if(!enabledIndices.empty())
         {
             std::uniform_int_distribution<long int> enabledDist(0, enabledIndices.size() - 1);
-            synapseGene& splitSynapse = genome->synapses[enabledDist(gen)];
+            synapseGene splitSynapse = genome->synapses[enabledDist(gen)];
             long int newNeuronID;
             bool neuronDoesNotExist = synapseSplits.find(splitSynapse.innovationNumber) == synapseSplits.end();
             if(neuronDoesNotExist) newNeuronID = globalNeuronNumber++;
@@ -443,6 +456,7 @@ void NEAT::reproduce()
             genomes.push_back(newGenomes[i][j]);
         }
     }
+    populationSize = genomes.size();
 
     newGenomes.clear();
 }

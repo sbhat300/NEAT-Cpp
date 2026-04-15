@@ -48,7 +48,7 @@ class NEAT
         {
             int inputs;
             int outputs;
-            float fitness;
+            float fitness=0;
             float adjustedFitness;
             std::unordered_map<long int, neuronGene> neurons;
             std::vector<long int> neuronList;
@@ -77,6 +77,7 @@ class NEAT
         std::vector<std::vector<genome>> newGenomes;
         std::unordered_map<std::pair<long int, long int>, long int, pair_hash> synapseInnovationNumbers;
         std::unordered_map<long int, long int> synapseSplits;
+        int populationSize;
 
         float c1 = 1.0f, c2 = 1.0f, c3 = 0.4f, deltaT = 3.0f, r = 0.2f, disableProb = 0.75f, weightMutationPower = 0.2f;
 
