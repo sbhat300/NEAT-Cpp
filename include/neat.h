@@ -50,6 +50,8 @@ class NEAT
             int outputs;
             float fitness=0;
             float adjustedFitness;
+            bool isChampion=false;
+            int speciesId=0;
             std::unordered_map<long int, neuronGene> neurons;
             std::vector<long int> neuronList;
             std::vector<synapseGene> synapses; 

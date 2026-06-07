@@ -215,7 +215,7 @@ NEAT::genome NEAT::crossover(genome* parent1, genome* parent2)
         }
     } 
     else
-        for(std::pair< const long int, neuronGene>& neuron : strongParent->neurons) 
+        for(std::pair<const long int, neuronGene>& neuron : strongParent->neurons) 
         {
             newGenome.neurons[neuron.first] = neuron.second;
             newGenome.neuronList.push_back(neuron.first);
@@ -453,6 +453,8 @@ void NEAT::reproduce()
     {
         for(int j = 0; j < newGenomes[i].size(); j++)
         {
+            newGenomes[i][j].speciesId = i;
+            newGenomes[i][j].isChampion = j == 0;
             genomes.push_back(newGenomes[i][j]);
         }
     }
@@ -506,6 +508,10 @@ void NEAT::compileNetwork(genome& g)
     {
         for(auto& outNeuron : adj[neuron.id]) neuron.outgoing.push_back({idToIdx[outNeuron.first], outNeuron.second});
     }
+    if (g.nnExecutionOrder.size() != g.neuronList.size()) 
+    {
+        std::cout << "NEAT WARNING: Neuron was dropped" << std::endl;
+    }
 }
 
 std::vector<float> NEAT::feedForward(genome& g, const std::vector<float>& inputs, float (*activationFunction)(float))
@@ -525,7 +531,7 @@ std::vector<float> NEAT::feedForward(genome& g, const std::vector<float>& inputs
 
         if(neuron.isOutput)
         {
-            outputVals[neuron.id - g.inputs] = nodeVals[i];
+        outputVals[neuron.id - g.inputs] = nodeVals[i];
         }
 
         for(const phenotypeConnection& connection : neuron.outgoing)
