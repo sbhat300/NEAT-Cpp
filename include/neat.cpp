@@ -220,6 +220,20 @@ NEAT::genome NEAT::crossover(genome* parent1, genome* parent2)
             newGenome.neurons[neuron.first] = neuron.second;
             newGenome.neuronList.push_back(neuron.first);
         }
+    
+    auto tryAddSynapse = [&](const synapseGene& syn) 
+    {
+        if(newGenome.synapseIDs.find(syn.innovationNumber) != newGenome.synapseIDs.end()) return;
+
+        std::unordered_set<long int> visited;
+        
+        if(!hasCycle(syn.outputID, syn.inputID, newGenome.adj, visited))
+        {
+            newGenome.synapses.push_back(syn);
+            newGenome.synapseIDs.insert(syn.innovationNumber);
+            newGenome.adj[syn.inputID].push_back(syn.outputID);
+        }
+    };
 
     long int p1 = 0, p2 = 0;
     while(p1 < strongParent->synapses.size() || p2 < weakParent->synapses.size())
@@ -230,9 +244,7 @@ NEAT::genome NEAT::crossover(genome* parent1, genome* parent2)
             {
                 while(p2 < weakParent->synapses.size()) 
                 {
-                    newGenome.synapses.push_back(weakParent->synapses[p2]);
-                    newGenome.synapseIDs.insert(weakParent->synapses[p2].innovationNumber);
-                    newGenome.adj[weakParent->synapses[p2].inputID].push_back(weakParent->synapses[p2].outputID); 
+                    tryAddSynapse(weakParent->synapses[p2]);
                     p2++;
                 }
             }
@@ -242,9 +254,7 @@ NEAT::genome NEAT::crossover(genome* parent1, genome* parent2)
         {
             while(p1 < strongParent->synapses.size()) 
             {
-                newGenome.synapses.push_back(strongParent->synapses[p1]);
-                newGenome.synapseIDs.insert(strongParent->synapses[p1].innovationNumber);
-                newGenome.adj[strongParent->synapses[p1].inputID].push_back(strongParent->synapses[p1].outputID); 
+                tryAddSynapse(strongParent->synapses[p1]);
                 p1++;
             }
             break;
@@ -255,15 +265,11 @@ NEAT::genome NEAT::crossover(genome* parent1, genome* parent2)
         {
             if(chance(gen) < 0.5f) 
             {
-                newGenome.synapses.push_back(strongParent->synapses[p1]);
-                newGenome.synapseIDs.insert(strongParent->synapses[p1].innovationNumber);
-                newGenome.adj[strongParent->synapses[p1].inputID].push_back(strongParent->synapses[p1].outputID); 
+                tryAddSynapse(strongParent->synapses[p1]);
             }
             else 
             {
-                newGenome.synapses.push_back(weakParent->synapses[p2]);
-                newGenome.synapseIDs.insert(weakParent->synapses[p2].innovationNumber);
-                newGenome.adj[weakParent->synapses[p2].inputID].push_back(weakParent->synapses[p2].outputID); 
+                tryAddSynapse(weakParent->synapses[p2]);
             }
             if(strongParent->synapses[p1].enabled && weakParent->synapses[p2].enabled) newGenome.synapses.back().enabled = true;
             else
@@ -276,18 +282,14 @@ NEAT::genome NEAT::crossover(genome* parent1, genome* parent2)
         }
         else if(id1 < id2)
         {
-            newGenome.synapses.push_back(strongParent->synapses[p1]);
-            newGenome.synapseIDs.insert(strongParent->synapses[p1].innovationNumber);
-            newGenome.adj[strongParent->synapses[p1].inputID].push_back(strongParent->synapses[p1].outputID); 
+            tryAddSynapse(strongParent->synapses[p1]);
             p1++;
         }
         else
         {
             if(parent1->fitness == parent2->fitness) 
             {
-                newGenome.synapses.push_back(weakParent->synapses[p2]);
-                newGenome.synapseIDs.insert(weakParent->synapses[p2].innovationNumber);
-                newGenome.adj[weakParent->synapses[p2].inputID].push_back(weakParent->synapses[p2].outputID); 
+                tryAddSynapse(weakParent->synapses[p2]);
             }
             p2++;
         }
