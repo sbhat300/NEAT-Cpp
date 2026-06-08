@@ -199,7 +199,7 @@ NEAT::genome NEAT::crossover(genome* parent1, genome* parent2)
 
     if(parent1->fitness == parent2->fitness)
     {
-        std::unordered_set<int> pushedNeurons;
+        std::unordered_set<long int> pushedNeurons;
         for(std::pair<const long int, neuronGene>& neuron : parent1->neurons) 
         {
             pushedNeurons.insert(neuron.first);
@@ -222,9 +222,9 @@ NEAT::genome NEAT::crossover(genome* parent1, genome* parent2)
             newGenome.neuronList.push_back(neuron.first);
         }
     
-    auto tryAddSynapse = [&](const synapseGene& syn) 
+    auto tryAddSynapse = [&](const synapseGene& syn) -> bool
     {
-        if(newGenome.synapseIDs.find(syn.innovationNumber) != newGenome.synapseIDs.end()) return;
+        if(newGenome.synapseIDs.find(syn.innovationNumber) != newGenome.synapseIDs.end()) return false;
 
         std::unordered_set<long int> visited;
         
@@ -233,7 +233,9 @@ NEAT::genome NEAT::crossover(genome* parent1, genome* parent2)
             newGenome.synapses.push_back(syn);
             newGenome.synapseIDs.insert(syn.innovationNumber);
             newGenome.adj[syn.inputID].push_back(syn.outputID);
+            return true;
         }
+        return false;
     };
 
     long int p1 = 0, p2 = 0;
@@ -264,19 +266,23 @@ NEAT::genome NEAT::crossover(genome* parent1, genome* parent2)
         long int id1 = strongParent->synapses[p1].innovationNumber, id2 = weakParent->synapses[p2].innovationNumber;
         if(id1 == id2)
         {
+            bool added = false;
             if(chance(gen) < 0.5f) 
             {
-                tryAddSynapse(strongParent->synapses[p1]);
+                added = tryAddSynapse(strongParent->synapses[p1]);
             }
             else 
             {
-                tryAddSynapse(weakParent->synapses[p2]);
+                added = tryAddSynapse(weakParent->synapses[p2]);
             }
-            if(strongParent->synapses[p1].enabled && weakParent->synapses[p2].enabled) newGenome.synapses.back().enabled = true;
-            else
+            if(added)
             {
-                if(chance(gen) < disableProb) newGenome.synapses.back().enabled = false;
-                else newGenome.synapses.back().enabled = true;
+                if(strongParent->synapses[p1].enabled && weakParent->synapses[p2].enabled) newGenome.synapses.back().enabled = true;
+                else
+                {
+                    if(chance(gen) < disableProb) newGenome.synapses.back().enabled = false;
+                    else newGenome.synapses.back().enabled = true;
+                }
             }
             p1++;
             p2++;
@@ -381,8 +387,11 @@ void NEAT::mutate(genome* genome)
             if(neuronDoesNotExist) newNeuronID = globalNeuronNumber++;
             else newNeuronID = synapseSplits[splitSynapse.innovationNumber];
 
-            genome->neurons[newNeuronID] = {newNeuronID, (float)distrib(gen), HIDDEN};
-            genome->neuronList.push_back(newNeuronID);
+            if(genome->neurons.find(newNeuronID) == genome->neurons.end())
+            {
+                genome->neurons[newNeuronID] = {newNeuronID, (float)distrib(gen), HIDDEN};
+                genome->neuronList.push_back(newNeuronID);
+            }
             if(neuronDoesNotExist) synapseSplits[splitSynapse.innovationNumber] = newNeuronID;
 
             splitSynapse.enabled = false;
@@ -391,26 +400,35 @@ void NEAT::mutate(genome* genome)
             bool splitExists = synapseInnovationNumbers.find({splitSynapse.inputID, newNeuronID}) != synapseInnovationNumbers.end();
             if(splitExists) synapseID = synapseInnovationNumbers[{splitSynapse.inputID, newNeuronID}];
             else synapseID = globalInnovationNumber++;
-            synapseGene newSynapse = {synapseID, splitSynapse.inputID, newNeuronID, 1.0f, true};
-            genome->synapseIDs.insert(synapseID);
-            if(!splitExists) synapseInnovationNumbers[{splitSynapse.inputID, newNeuronID}] = synapseID;
-            auto it = std::upper_bound(genome->synapses.begin(), genome->synapses.end(), newSynapse, [](const synapseGene& a, const synapseGene& b) {
-                return a.innovationNumber < b.innovationNumber;
-            });
-            genome->synapses.insert(it, newSynapse);
-            genome->adj[splitSynapse.inputID].push_back(newNeuronID);
+
+            synapseGene newSynapse;
+            if(genome->synapseIDs.find(synapseID) == genome->synapseIDs.end())
+            {
+                newSynapse = {synapseID, splitSynapse.inputID, newNeuronID, 1.0f, true};
+                genome->synapseIDs.insert(synapseID);
+                if(!splitExists) synapseInnovationNumbers[{splitSynapse.inputID, newNeuronID}] = synapseID;
+                auto it = std::upper_bound(genome->synapses.begin(), genome->synapses.end(), newSynapse, [](const synapseGene& a, const synapseGene& b) {
+                    return a.innovationNumber < b.innovationNumber;
+                });
+                genome->synapses.insert(it, newSynapse);
+                genome->adj[splitSynapse.inputID].push_back(newNeuronID);
+            }
             
             splitExists = synapseInnovationNumbers.find({newNeuronID, splitSynapse.outputID}) != synapseInnovationNumbers.end();
             if(splitExists) synapseID = synapseInnovationNumbers[{newNeuronID, splitSynapse.outputID}];
             else synapseID = globalInnovationNumber++;
-            newSynapse = {synapseID, newNeuronID, splitSynapse.outputID, splitSynapse.weight, true};
-            genome->synapseIDs.insert(synapseID);
-            if(!splitExists) synapseInnovationNumbers[{newNeuronID, splitSynapse.outputID}] = synapseID;
-            it = std::upper_bound(genome->synapses.begin(), genome->synapses.end(), newSynapse, [](const synapseGene& a, const synapseGene& b) {
-                return a.innovationNumber < b.innovationNumber;
-            });
-            genome->synapses.insert(it, newSynapse);
-            genome->adj[newNeuronID].push_back(splitSynapse.outputID);
+
+            if(genome->synapseIDs.find(synapseID) == genome->synapseIDs.end())
+            {
+                newSynapse = {synapseID, newNeuronID, splitSynapse.outputID, splitSynapse.weight, true};
+                genome->synapseIDs.insert(synapseID);
+                if(!splitExists) synapseInnovationNumbers[{newNeuronID, splitSynapse.outputID}] = synapseID;
+                auto it = std::upper_bound(genome->synapses.begin(), genome->synapses.end(), newSynapse, [](const synapseGene& a, const synapseGene& b) {
+                    return a.innovationNumber < b.innovationNumber;
+                });
+                genome->synapses.insert(it, newSynapse);
+                genome->adj[newNeuronID].push_back(splitSynapse.outputID);
+            }
         }
     }
 
@@ -513,6 +531,7 @@ void NEAT::compileNetwork(genome& g)
     }
     if (g.nnExecutionOrder.size() != g.neuronList.size()) 
     {
+        //TODO: FIX THIS
         std::cout << "NEAT WARNING: Neuron was dropped" << std::endl;
     }
 }
