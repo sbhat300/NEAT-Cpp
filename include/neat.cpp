@@ -110,7 +110,7 @@ void NEAT::speciate()
             float W = 0;
             if(matching != 0) W = weightDiff / matching;
             long int maxGenes = std::max(genomes[i].synapses.size(), compare->synapses.size());
-            long int N = maxGenes < 20 ? 1 : maxGenes;
+            long int N = maxGenes < minNGenes ? 1 : maxGenes;
             float delta = c1 * (float)excess / N + c2 * (float)disjoint / N + c3 * W;
             if(delta <= deltaT) 
             {
@@ -169,13 +169,34 @@ void NEAT::fitnessShare()
         return;
     }
 
+    std::vector<float> shares(speciatedGenomes.size());
     for(int i = 0; i < speciatedGenomes.size(); i++) 
     {
+        shares[i] = NPrime[i] / meanAdjFitness;
         long int allocate = (long int)(NPrime[i] / meanAdjFitness);
         newGenomes[i].resize(allocate);
         allocated += allocate;
     }
     int remainder = genomes.size() - allocated;
+
+    while(remainder > 0)
+    {
+        int bestId = -1;
+        float maxFraction = -1.0f;
+        for(int i = 0; i < speciatedGenomes.size(); i++) 
+        {
+            float fraction = shares[i] - (long int)shares[i];
+            if(fraction > maxFraction) 
+            {
+                maxFraction = fraction;
+                bestId = i;
+            }
+        }
+
+        newGenomes[bestId].resize(newGenomes[bestId].size() + 1);
+        shares[bestId] = 0; 
+        remainder--;
+    }
     newGenomes[bestSpecies].resize(newGenomes[bestSpecies].size() + remainder);
 }
 
@@ -531,7 +552,6 @@ void NEAT::compileNetwork(genome& g)
     }
     if (g.nnExecutionOrder.size() != g.neuronList.size()) 
     {
-        //TODO: FIX THIS
         std::cout << "NEAT WARNING: Neuron was dropped" << std::endl;
     }
 }
