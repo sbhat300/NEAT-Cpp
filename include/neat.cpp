@@ -109,7 +109,8 @@ void NEAT::speciate()
 
             float W = 0;
             if(matching != 0) W = weightDiff / matching;
-            long int N = std::max((long int)std::max(genomes[i].synapses.size(), compare->synapses.size()), (long int)1);
+            long int maxGenes = std::max(genomes[i].synapses.size(), compare->synapses.size());
+            long int N = maxGenes < 20 ? 1 : maxGenes;
             float delta = c1 * (float)excess / N + c2 * (float)disjoint / N + c3 * W;
             if(delta <= deltaT) 
             {
