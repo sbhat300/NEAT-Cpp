@@ -402,7 +402,8 @@ void NEAT::mutate(genome* genome)
         if(!enabledIndices.empty())
         {
             std::uniform_int_distribution<long int> enabledDist(0, enabledIndices.size() - 1);
-            synapseGene splitSynapse = genome->synapses[enabledDist(gen)];
+            int idx = enabledDist(gen);
+            synapseGene splitSynapse = genome->synapses[enabledIndices[idx]];
             long int newNeuronID;
             bool neuronDoesNotExist = synapseSplits.find(splitSynapse.innovationNumber) == synapseSplits.end();
             if(neuronDoesNotExist) newNeuronID = globalNeuronNumber++;
@@ -415,9 +416,9 @@ void NEAT::mutate(genome* genome)
             }
             if(neuronDoesNotExist) synapseSplits[splitSynapse.innovationNumber] = newNeuronID;
 
-            splitSynapse.enabled = false;
+            genome->synapses[enabledIndices[idx]].enabled = false;
 
-            int synapseID;
+            long int synapseID;
             bool splitExists = synapseInnovationNumbers.find({splitSynapse.inputID, newNeuronID}) != synapseInnovationNumbers.end();
             if(splitExists) synapseID = synapseInnovationNumbers[{splitSynapse.inputID, newNeuronID}];
             else synapseID = globalInnovationNumber++;
